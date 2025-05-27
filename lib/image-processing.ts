@@ -49,7 +49,7 @@ export async function preprocessMedicalImage(imageData: string): Promise<{
   }
 }
 
-export function calculateImageQualityScore(analysis: ImageAnalysisResult): number {
+export async function calculateImageQualityScore(analysis: ImageAnalysisResult): Promise<number> {
   const qualityScores = {
     excellent: 100,
     good: 85,
