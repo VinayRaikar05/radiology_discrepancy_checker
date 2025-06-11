@@ -1,14 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
+  experimental: {
+    serverActions: true,
   },
-  typescript: {
-    ignoreBuildErrors: true,
+  api: {
+    bodyParser: {
+      sizeLimit: '20mb', // Increase this if needed
+    },
   },
-  images: {
-    unoptimized: true,
-  },
-}
+};
 
-export default nextConfig
+module.exports = nextConfig;
