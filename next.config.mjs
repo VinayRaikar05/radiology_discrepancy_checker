@@ -1,7 +1,10 @@
-export const nextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   experimental: {
     serverActions: true,
-    serverActionsBodySizeLimit: '10mb', // ← raise limit here
+  },
+  env: {
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
   },
 };
 
