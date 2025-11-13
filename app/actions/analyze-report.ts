@@ -167,7 +167,6 @@ Provide specific, actionable insights for radiologist review.`
     const { text } = await generateText({
       model: groq("llama-3.1-8b-instant"),
       prompt: analysisPrompt,
-      maxTokens: 2000,
     })
 
     // Parse the response and create structured result
