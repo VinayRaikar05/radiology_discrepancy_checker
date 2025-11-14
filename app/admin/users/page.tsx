@@ -42,10 +42,16 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    email: string
+    full_name: string
+    role: "admin" | "radiologist" | "reviewer" | "resident"
+    department: string
+    password: string
+  }>({
     email: "",
     full_name: "",
-    role: "radiologist" as const,
+    role: "radiologist",
     department: "",
     password: "",
   })
@@ -268,7 +274,7 @@ export default function AdminUsersPage() {
                           <Label htmlFor="role">Role</Label>
                           <Select
                             value={formData.role}
-                            onValueChange={(value: any) => setFormData({ ...formData, role: value })}
+                            onValueChange={(value: "admin" | "radiologist" | "reviewer" | "resident") => setFormData({ ...formData, role: value })}
                           >
                             <SelectTrigger>
                               <SelectValue />
@@ -401,7 +407,7 @@ export default function AdminUsersPage() {
                     <Label htmlFor="edit_role">Role</Label>
                     <Select
                       value={formData.role}
-                      onValueChange={(value: any) => setFormData({ ...formData, role: value })}
+                      onValueChange={(value: "admin" | "radiologist" | "reviewer" | "resident") => setFormData({ ...formData, role: value })}
                     >
                       <SelectTrigger>
                         <SelectValue />
