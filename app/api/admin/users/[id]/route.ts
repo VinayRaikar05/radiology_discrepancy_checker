@@ -2,21 +2,14 @@ import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
 
 import { authOptions, hashPassword } from "@/lib/auth"
-import { createServerClient } from "@/lib/supabase"
-
-const supabaseAdmin = createServerClient()
+import { getSupabaseForServer } from "@/lib/supabase"
 
 const ADMIN_ROLES = new Set(["admin"])
 const VALID_ROLES = new Set(["admin", "radiologist", "reviewer", "resident"])
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
-  // Ensure session exists and role is a defined string before calling Set.has
-  if (
-    !session ||
-    typeof session.user?.role !== 'string' ||
-    !ADMIN_ROLES.has(session.user.role)
-  ) {
+  if (!session || typeof session.user?.role !== 'string' || !ADMIN_ROLES.has(session.user.role)) {
     return null
   }
   return session
@@ -37,6 +30,18 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const { id } = params
   if (!id) {
     return NextResponse.json({ error: "Missing user id" }, { status: 400 })
+  }
+
+  // Initialize Supabase client at request runtime (not at module import).
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseForServer();
+  } catch (err) {
+    // Provide a clear 500 response for missing envs instead of breaking the build step.
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Missing Supabase env' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -101,6 +106,18 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
   const { id } = params
   if (!id) {
     return NextResponse.json({ error: "Missing user id" }, { status: 400 })
+  }
+
+  // Initialize Supabase client at request runtime (not at module import).
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseForServer();
+  } catch (err) {
+    // Provide a clear 500 response for missing envs instead of breaking the build step.
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Missing Supabase env' },
+      { status: 500 }
+    );
   }
 
   try {

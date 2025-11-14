@@ -25,6 +25,35 @@ export function createServerClient() {
   return createClient(resolvedSupabaseUrl, resolvedSupabaseServiceKey)
 }
 
+/**
+ * Lazily create and return a Supabase client for server-side usage.
+ * This prevents reading env vars at module import time (which breaks Next build/page-data collection
+ * when env vars are not present in the build environment).
+ *
+ * Throws a clear error if required env vars are missing.
+ */
+export function getSupabaseForServer() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Prefer the server-side service key for privileged operations; fallback to anon if you only have anon.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url) {
+    throw new Error(
+      'NEXT_PUBLIC_SUPABASE_URL is not defined. Set NEXT_PUBLIC_SUPABASE_URL in your environment.'
+    );
+  }
+  if (!key) {
+    throw new Error(
+      'Supabase key is not defined. Set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment.'
+    );
+  }
+
+  return createClient(url, key, {
+    // Ensure server-side defaults, adjust if needed.
+    auth: { persistSession: false }
+  });
+}
+
 // Database types
 export interface Database {
   public: {

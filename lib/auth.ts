@@ -1,7 +1,7 @@
 import { compare, genSalt, hash } from "bcryptjs"
 import type { NextAuthOptions } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
-import { createServerClient } from "@/lib/supabase"
+import { getSupabaseForServer } from "@/lib/supabase"
 
 type UserRole = "admin" | "radiologist" | "reviewer" | "resident"
 
@@ -15,14 +15,13 @@ interface UserRecord {
   is_active: boolean
 }
 
-const supabaseAdmin = createServerClient()
-
 export async function hashPassword(password: string) {
   const salt = await genSalt(12)
   return hash(password, salt)
 }
 
 export async function authenticateUser(email: string, password: string) {
+  const supabaseAdmin = getSupabaseForServer()
   const { data, error } = await supabaseAdmin
     .from("users")
     .select("id, email, full_name, role, department, password_hash, is_active")
@@ -67,6 +66,7 @@ export async function createUser({
 }) {
   const password_hash = await hashPassword(password)
 
+  const supabaseAdmin = getSupabaseForServer()
   const { data, error } = await supabaseAdmin
     .from("users")
     .insert({
