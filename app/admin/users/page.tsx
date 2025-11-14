@@ -23,6 +23,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Edit, Trash2, Search } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
+// --- role helpers ---
+const allowedRoles = ['radiologist', 'admin', 'reviewer', 'resident'] as const;
+type Role = (typeof allowedRoles)[number];
+
+function isRole(value: unknown): value is Role {
+  return typeof value === 'string' && (allowedRoles as readonly string[]).includes(value);
+}
+
+/**
+ * Ensures the runtime value is a valid Role.
+ * If it isn't valid, returns a safe default ('radiologist') or
+ * you may choose to throw an error instead.
+ */
+function ensureRole(v: unknown): Role {
+  if (isRole(v)) return v;
+  // fallback — change to `throw new Error(...)` if you prefer strict behavior.
+  return 'radiologist';
+}
+// --- end helpers ---
+
 interface User {
   id: string
   email: string
@@ -194,7 +214,9 @@ export default function AdminUsersPage() {
     setFormData({
       email: user.email,
       full_name: user.full_name,
-      role: user.role,
+      // Ensure the role value matches the expected Role union.
+      // This avoids assigning a broader string union to a narrower type.
+      role: ensureRole(user.role),
       department: user.department,
       password: "",
     })
