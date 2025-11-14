@@ -15,7 +15,7 @@ function sanitizeUser(user: any) {
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
-  if (!session || !ADMIN_ROLES.has(session.user.role)) {
+  if (!session || !session.user.role || !ADMIN_ROLES.has(session.user.role)) {
     return null
   }
   return session
