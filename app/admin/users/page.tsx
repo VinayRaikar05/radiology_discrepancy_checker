@@ -232,27 +232,27 @@ export default function AdminUsersPage() {
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
       case "radiologist":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
       case "reviewer":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
       case "resident":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-muted text-muted-foreground"
     }
   }
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-              <p className="mt-1 text-sm text-gray-600">Manage system users and their permissions</p>
+              <h1 className="text-2xl font-bold text-foreground">User Management</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Manage system users and their permissions</p>
             </div>
 
             <Card>
@@ -337,7 +337,7 @@ export default function AdminUsersPage() {
               <CardContent>
                 <div className="mb-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search users..."
                       value={searchTerm}
@@ -386,7 +386,7 @@ export default function AdminUsersPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDeleteUser(user.id)}
-                                className="text-red-600 hover:text-red-700"
+                                className="text-destructive hover:text-destructive/80"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

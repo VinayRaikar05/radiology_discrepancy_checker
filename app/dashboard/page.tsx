@@ -50,10 +50,10 @@ const defaultStats: DashboardStats = {
 }
 
 const roleColors = {
-  admin: "bg-red-100 text-red-800",
-  radiologist: "bg-blue-100 text-blue-800",
-  reviewer: "bg-green-100 text-green-800",
-  resident: "bg-purple-100 text-purple-800",
+  admin: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300",
+  radiologist: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300",
+  reviewer: "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300",
+  resident: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300",
 }
 
 const roleActions = {
@@ -171,9 +171,9 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-blue-600" />
-          <h2 className="mt-4 text-lg font-semibold text-gray-900">Loading dashboard...</h2>
-          <p className="text-sm text-gray-500">Fetching the latest metrics for your workspace.</p>
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+          <h2 className="mt-4 text-lg font-semibold text-foreground">Loading dashboard...</h2>
+          <p className="text-sm text-muted-foreground">Fetching the latest metrics for your workspace.</p>
         </div>
       </div>
     )
@@ -184,18 +184,18 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <Link href="/" className="flex items-center space-x-2">
-              <Brain className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">RadiologyAI</span>
+              <Brain className="h-8 w-8 text-primary" />
+              <span className="text-2xl font-bold text-foreground">RadiologyAI</span>
             </Link>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <Avatar>
-                  <AvatarFallback className="bg-blue-600 text-white">
+                  <AvatarFallback className="bg-primary text-primary-foreground">
                     {session.user.name
                       ?.split(" ")
                       .map((part) => part[0])
@@ -203,12 +203,12 @@ export default function DashboardPage() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900">{session.user.name}</p>
+                  <p className="text-sm font-medium text-foreground">{session.user.name}</p>
                   <div className="flex items-center space-x-2">
-                    <Badge className={roleColors[userRole] || "bg-gray-100 text-gray-800"}>
+                    <Badge className={roleColors[userRole] || "bg-muted text-muted-foreground"}>
                       {session.user.role || 'radiologist'}
                     </Badge>
-                    <span className="text-xs text-gray-500">{session.user.department}</span>
+                    <span className="text-xs text-muted-foreground">{session.user.department}</span>
                   </div>
                 </div>
               </div>
@@ -223,12 +223,12 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {session.user.name?.split(" ")[0]}.</h1>
-          <p className="text-gray-600">Here is the latest performance snapshot for your radiology program.</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back, {session.user.name?.split(" ")[0]}.</h1>
+          <p className="text-muted-foreground">Here is the latest performance snapshot for your radiology program.</p>
         </div>
 
         {error && (
-          <div className="mb-6 flex items-start space-x-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <div className="mb-6 flex items-start space-x-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <p>{error}</p>
           </div>
@@ -266,10 +266,10 @@ export default function DashboardPage() {
                     <Card className="hover:shadow-md transition-shadow cursor-pointer">
                       <CardContent className="p-4">
                         <div className="flex items-start space-x-3">
-                          <IconComponent className="h-6 w-6 text-blue-600 mt-1" />
+                          <IconComponent className="h-6 w-6 text-primary mt-1" />
                           <div>
-                            <h3 className="font-semibold text-gray-900 mb-1">{action.title}</h3>
-                            <p className="text-sm text-gray-600">{action.description}</p>
+                            <h3 className="font-semibold text-foreground mb-1">{action.title}</h3>
+                            <p className="text-sm text-muted-foreground">{action.description}</p>
                           </div>
                         </div>
                       </CardContent>
@@ -290,9 +290,9 @@ export default function DashboardPage() {
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
                 {Object.entries(stats.riskDistribution).map(([level, value]) => (
-                  <div key={level} className="rounded-lg border bg-white p-4">
-                    <p className="text-xs uppercase text-gray-500">{level}</p>
-                    <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
+                  <div key={level} className="rounded-lg border border-border bg-card p-4">
+                    <p className="text-xs uppercase text-muted-foreground">{level}</p>
+                    <p className="text-2xl font-semibold text-foreground mt-1">{value}</p>
                   </div>
                 ))}
               </div>
@@ -307,15 +307,15 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-4">
                 {stats.recentActivity.length === 0 ? (
-                  <p className="text-sm text-gray-500">No recent activity recorded.</p>
+                  <p className="text-sm text-muted-foreground">No recent activity recorded.</p>
                 ) : (
                   stats.recentActivity.map((item, index) => {
                     const statusStyles =
                       item.status === "warning"
-                        ? "bg-yellow-50 text-yellow-900"
+                        ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-900 dark:text-yellow-300"
                         : item.status === "success"
-                          ? "bg-green-50 text-green-900"
-                          : "bg-blue-50 text-blue-900"
+                          ? "bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-300"
+                          : "bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-300"
 
                     const IconComponent = item.status === "warning" ? AlertTriangle : CheckCircle
 
