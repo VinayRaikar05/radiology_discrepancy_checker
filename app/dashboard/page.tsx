@@ -132,7 +132,9 @@ export default function DashboardPage() {
     await signOut({ callbackUrl: "/" })
   }
 
-  const userRole = session?.user.role as keyof typeof roleActions
+  const userRole = (session?.user?.role && typeof session.user.role === 'string' 
+    ? session.user.role 
+    : 'radiologist') as keyof typeof roleActions
   const actions = roleActions[userRole] || roleActions.radiologist
 
   const metricCards = useMemo(
@@ -204,7 +206,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-900">{session.user.name}</p>
                   <div className="flex items-center space-x-2">
                     <Badge className={roleColors[userRole] || "bg-gray-100 text-gray-800"}>
-                      {session.user.role}
+                      {session.user.role || 'radiologist'}
                     </Badge>
                     <span className="text-xs text-gray-500">{session.user.department}</span>
                   </div>

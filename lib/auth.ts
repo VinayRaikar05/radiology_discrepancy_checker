@@ -24,7 +24,7 @@ export async function hashPassword(password: string) {
 
 export async function authenticateUser(email: string, password: string) {
   const { data, error } = await supabaseAdmin
-    .from<UserRecord>("users")
+    .from("users")
     .select("id, email, full_name, role, department, password_hash, is_active")
     .eq("email", email)
     .single()

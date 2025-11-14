@@ -11,7 +11,12 @@ const VALID_ROLES = new Set(["admin", "radiologist", "reviewer", "resident"])
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
-  if (!session || !session.user.role || !ADMIN_ROLES.has(session.user.role)) {
+  // Ensure session exists and role is a defined string before calling Set.has
+  if (
+    !session ||
+    typeof session.user?.role !== 'string' ||
+    !ADMIN_ROLES.has(session.user.role)
+  ) {
     return null
   }
   return session

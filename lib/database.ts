@@ -252,7 +252,10 @@ export class DatabaseService {
 
       const riskDistribution = analyses?.reduce(
         (acc, a) => {
-          acc[a.risk_level] = (acc[a.risk_level] || 0) + 1
+          const riskLevel = a.risk_level as keyof typeof acc
+          if (riskLevel in acc) {
+            acc[riskLevel] = (acc[riskLevel] || 0) + 1
+          }
           return acc
         },
         { low: 0, medium: 0, high: 0, critical: 0 },

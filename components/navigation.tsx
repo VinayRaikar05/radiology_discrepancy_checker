@@ -43,7 +43,8 @@ export function Navigation() {
     }
   }
 
-  const getInitials = (name: string) => {
+  const getInitials = (name: string | undefined) => {
+    if (!name) return "U"
     return name
       .split(" ")
       .map((n) => n[0])
@@ -88,7 +89,7 @@ export function Navigation() {
 
           {/* User menu */}
           <div className="hidden sm:ml-6 sm:flex sm:items-center">
-            {session && (
+            {session && session.user.role && (
               <div className="flex items-center space-x-4">
                 <Badge className={getRoleColor(session.user.role)}>
                   {session.user.role.charAt(0).toUpperCase() + session.user.role.slice(1)}

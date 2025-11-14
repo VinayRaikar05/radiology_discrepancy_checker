@@ -21,7 +21,7 @@ export async function GET() {
 
     // Test table existence and get counts
     const tables = ["users", "radiology_reports", "analysis_results"]
-    const results = {}
+    const results: Record<string, { exists: boolean; error: string | null; count: number }> = {}
 
     for (const table of tables) {
       try {

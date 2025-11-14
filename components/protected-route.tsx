@@ -24,7 +24,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
       return
     }
 
-    if (requiredRole && session.user.role !== requiredRole) {
+    if (requiredRole && session.user.role && session.user.role !== requiredRole) {
       router.push("/dashboard")
       return
     }
@@ -42,7 +42,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     return null
   }
 
-  if (requiredRole && session.user.role !== requiredRole) {
+  if (requiredRole && session.user.role && session.user.role !== requiredRole) {
     return null
   }
 
