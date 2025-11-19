@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { databaseService } from "@/lib/database"
 import { getSupabaseForServer } from "@/lib/supabase"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -103,4 +105,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
-

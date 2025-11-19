@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { auditLogService } from "@/lib/audit-log"
 import { getRequestMetadata } from "@/lib/audit-log"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -54,4 +56,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
-
