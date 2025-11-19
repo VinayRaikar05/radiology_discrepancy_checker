@@ -222,19 +222,22 @@ export class DatabaseService {
 
   async getAnalytics(dateRange?: { start: string; end: string }) {
     try {
-      // Get basic counts
-      const { data: reports, error: reportsError } = await this.client
-        .from("radiology_reports")
-        .select("id, status, created_at")
+      // Build query with date range filter if provided
+      let reportsQuery = this.client.from("radiology_reports").select("id, status, study_type, created_at, radiologist_id")
+      let analysesQuery = this.client.from("analysis_results").select("confidence, risk_level, created_at, report_id")
+
+      if (dateRange) {
+        reportsQuery = reportsQuery.gte("created_at", dateRange.start).lte("created_at", dateRange.end)
+        analysesQuery = analysesQuery.gte("created_at", dateRange.start).lte("created_at", dateRange.end)
+      }
+
+      const { data: reports, error: reportsError } = await reportsQuery
+      const { data: analyses, error: analysesError } = await analysesQuery
 
       if (reportsError) {
         console.error("Error fetching analytics:", reportsError)
         return null
       }
-
-      const { data: analyses, error: analysesError } = await this.client
-        .from("analysis_results")
-        .select("confidence, risk_level, created_at")
 
       if (analysesError) {
         console.error("Error fetching analysis analytics:", analysesError)
@@ -261,18 +264,98 @@ export class DatabaseService {
         { low: 0, medium: 0, high: 0, critical: 0 },
       ) || { low: 0, medium: 0, high: 0, critical: 0 }
 
+      // Study type distribution
+      const studyTypeDistribution = reports?.reduce((acc, r) => {
+        const type = r.study_type || "unknown"
+        acc[type] = (acc[type] || 0) + 1
+        return acc
+      }, {} as Record<string, number>) || {}
+
+      // Daily trends (last 30 days)
+      const dailyTrends = this._calculateDailyTrends(reports || [], analyses || [])
+
+      // Status distribution
+      const statusDistribution = reports?.reduce((acc, r) => {
+        const status = r.status || "pending"
+        acc[status] = (acc[status] || 0) + 1
+        return acc
+      }, {} as Record<string, number>) || {}
+
+      // Confidence distribution
+      const confidenceRanges = {
+        "0-50": 0,
+        "51-70": 0,
+        "71-85": 0,
+        "86-95": 0,
+        "96-100": 0,
+      }
+      analyses?.forEach((a) => {
+        const conf = Math.round(a.confidence * 100)
+        if (conf <= 50) confidenceRanges["0-50"]++
+        else if (conf <= 70) confidenceRanges["51-70"]++
+        else if (conf <= 85) confidenceRanges["71-85"]++
+        else if (conf <= 95) confidenceRanges["86-95"]++
+        else confidenceRanges["96-100"]++
+      })
+
       return {
         totalReports,
         analyzedReports,
         flaggedReports,
         averageConfidence,
         riskDistribution,
+        studyTypeDistribution,
+        statusDistribution,
+        confidenceRanges,
+        dailyTrends,
         recentActivity: [], // Could be implemented with more complex queries
       }
     } catch (error) {
       console.error("Database error:", error)
       return null
     }
+  }
+
+  private _calculateDailyTrends(reports: any[], analyses: any[]) {
+    const trends: Record<string, { reports: number; analyses: number; flagged: number }> = {}
+    const today = new Date()
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    // Initialize all days
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(thirtyDaysAgo.getTime() + i * 24 * 60 * 60 * 1000)
+      const dateKey = date.toISOString().split("T")[0]
+      trends[dateKey] = { reports: 0, analyses: 0, flagged: 0 }
+    }
+
+    // Count reports
+    reports.forEach((r) => {
+      const reportDate = new Date(r.created_at)
+      if (reportDate >= thirtyDaysAgo) {
+        const dateKey = reportDate.toISOString().split("T")[0]
+        if (trends[dateKey]) {
+          trends[dateKey].reports++
+          if (r.status === "flagged") {
+            trends[dateKey].flagged++
+          }
+        }
+      }
+    })
+
+    // Count analyses
+    analyses.forEach((a) => {
+      const analysisDate = new Date(a.created_at)
+      if (analysisDate >= thirtyDaysAgo) {
+        const dateKey = analysisDate.toISOString().split("T")[0]
+        if (trends[dateKey]) {
+          trends[dateKey].analyses++
+        }
+      }
+    })
+
+    return Object.entries(trends)
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => a.date.localeCompare(b.date))
   }
 
   // Health check

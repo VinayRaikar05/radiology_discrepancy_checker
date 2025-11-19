@@ -1,8 +1,9 @@
 import { getServerSession } from "next-auth"
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
 import { authOptions, createUser } from "@/lib/auth"
 import { databaseService } from "@/lib/database"
+import { auditLogService, getRequestMetadata } from "@/lib/audit-log"
 
 const ADMIN_ROLES = new Set(["admin"])
 const VALID_ROLES = new Set(["admin", "radiologist", "reviewer", "resident"])
@@ -41,7 +42,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const session = await requireAdmin()
     if (!session) {
@@ -74,6 +75,23 @@ export async function POST(request: Request) {
         fullName,
         department,
         role,
+      })
+
+      // Log the action
+      const { ipAddress, userAgent } = getRequestMetadata(request)
+      await auditLogService.log({
+        user_id: session.user?.id,
+        action: "user.create",
+        entity_type: "user",
+        entity_id: newUser?.id,
+        details: {
+          email,
+          full_name: fullName,
+          role,
+          department,
+        },
+        ip_address: ipAddress,
+        user_agent: userAgent,
       })
 
       return NextResponse.json({ user: sanitizeUser(newUser) }, { status: 201 })

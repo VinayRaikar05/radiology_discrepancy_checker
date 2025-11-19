@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
 import { medicalAIEngine } from "@/lib/medical-ai-engine"
 import { databaseService } from "@/lib/database"
+import { authOptions } from "@/lib/auth"
+import { auditLogService, getRequestMetadata } from "@/lib/audit-log"
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,6 +45,23 @@ export async function POST(request: NextRequest) {
       savedAnalysis = await databaseService.createAnalysis({
         report_id: report.id,
         ...analysis,
+      })
+
+      // Log the analysis action
+      const session = await getServerSession(authOptions)
+      const { ipAddress, userAgent } = getRequestMetadata(request)
+      await auditLogService.log({
+        user_id: session?.user?.id,
+        action: "report.analyze",
+        entity_type: "report",
+        entity_id: report.id,
+        details: {
+          study_type: studyType,
+          risk_level: analysis.risk_level,
+          confidence: analysis.confidence,
+        },
+        ip_address: ipAddress,
+        user_agent: userAgent,
       })
     }
 

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Brain, Home, Upload, FileText, BarChart3, Users, LogOut, Menu, X } from "lucide-react"
+import { Brain, Home, Upload, FileText, BarChart3, Users, LogOut, Menu, X, Search, Shield } from "lucide-react"
 
 export function Navigation() {
   const { data: session } = useSession()
@@ -26,8 +26,14 @@ export function Navigation() {
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Upload", href: "/upload", icon: Upload },
     { name: "Review", href: "/review", icon: FileText },
+    { name: "Search", href: "/search", icon: Search },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
-    ...(session?.user.role === "admin" ? [{ name: "Users", href: "/admin/users", icon: Users }] : []),
+    ...(session?.user.role === "admin"
+      ? [
+          { name: "Users", href: "/admin/users", icon: Users },
+          { name: "Audit Logs", href: "/admin/audit-logs", icon: Shield },
+        ]
+      : []),
   ]
 
   const getRoleColor = (role: string) => {
