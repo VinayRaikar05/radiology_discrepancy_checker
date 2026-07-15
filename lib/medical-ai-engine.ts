@@ -75,7 +75,7 @@ export class MedicalAIEngine {
       `
 
       const result = await generateText({
-        model: groq("llama-3.1-70b-versatile"),
+        model: groq("meta-llama/llama-3.3-70b-versatile"),
         prompt,
         temperature: 0.3,
       })
@@ -111,7 +111,7 @@ export class MedicalAIEngine {
       const { generateText } = await import("ai")
 
       const result = await generateText({
-        model: groq("llama-3.1-70b-versatile"),
+        model: groq("meta-llama/llama-3.3-70b-versatile"),
         prompt: `Provide a concise medical summary of this radiology report in 2-3 sentences: ${reportText}`,
         temperature: 0.2,
       })
@@ -132,7 +132,7 @@ export class MedicalAIEngine {
       const { generateText } = await import("ai")
 
       const result = await generateText({
-        model: groq("llama-3.1-70b-versatile"),
+        model: groq("meta-llama/llama-3.3-70b-versatile"),
         prompt: `Identify any potential anomalies or inconsistencies in this radiology report. Return as a JSON array of strings: ${reportText}`,
         temperature: 0.3,
       })

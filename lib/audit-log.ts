@@ -32,11 +32,13 @@ export interface AuditLogEntry {
 }
 
 export class AuditLogService {
-  private client = getSupabaseForServer()
+  private getClient() {
+    return getSupabaseForServer()
+  }
 
   async log(entry: AuditLogEntry): Promise<void> {
     try {
-      await this.client.from("audit_logs").insert({
+      await this.getClient().from("audit_logs").insert({
         user_id: entry.user_id || null,
         action: entry.action,
         entity_type: entry.entity_type,
@@ -61,7 +63,7 @@ export class AuditLogService {
     offset?: number
   }) {
     try {
-      let query = this.client.from("audit_logs").select("*").order("created_at", { ascending: false })
+      let query = this.getClient().from("audit_logs").select("*").order("created_at", { ascending: false })
 
       if (filters?.userId) {
         query = query.eq("user_id", filters.userId)
@@ -113,7 +115,7 @@ export class AuditLogService {
     endDate?: string
   }) {
     try {
-      let query = this.client.from("audit_logs").select("*", { count: "exact", head: true })
+      let query = this.getClient().from("audit_logs").select("*", { count: "exact", head: true })
 
       if (filters?.userId) {
         query = query.eq("user_id", filters.userId)

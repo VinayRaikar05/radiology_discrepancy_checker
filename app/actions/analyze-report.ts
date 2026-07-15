@@ -2,10 +2,37 @@
 
 import { generateText } from "ai"
 import { groq } from "@ai-sdk/groq"
-import { Buffer } from "buffer"
+import {
+  classifyMultipleImages,
+  formatFindingsForLLM,
+} from "@/lib/medical-image-classifier"
+import { applyClinicalSafetyAudits } from "@/lib/clinical-audits"
+import { databaseService } from "@/lib/database"
+import { notificationService } from "@/lib/notifications"
+import { getServerSession } from "next-auth"
+import { getAuthOptions } from "@/lib/auth"
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Input sanitization
+// ──────────────────────────────────────────────────────────────────────────────
+const MAX_REPORT_TEXT_LENGTH = 50_000
+const MAX_PATIENT_ID_LENGTH = 100
+const MAX_FIELD_LENGTH = 500
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
+
+function sanitizeInput(input: string, maxLength: number): string {
+  return input
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .trim()
+    .slice(0, maxLength)
+}
+
+function isValidIdentifier(value: string): boolean {
+  return /^[a-zA-Z0-9\-_.\s]+$/.test(value)
+}
 
 interface AnalysisResult {
-  riskLevel: "low" | "medium" | "high"
+  riskLevel: "low" | "medium" | "high" | "critical"
   findings: string[]
   imageFindings: string[]
   imageTextComparison: string
@@ -43,60 +70,20 @@ interface AnalysisResult {
   }
 }
 
-async function convertImageToBase64(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer()
-  const base64 = Buffer.from(arrayBuffer).toString("base64")
-  return `data:${file.type};base64,${base64}`
-}
-
-async function analyzeImageWithML(
-  base64Image: string,
-  studyType: string,
-): Promise<{
-  findings: string[]
-  quality: string
-  confidence: number
-}> {
-  // Simulated ML image analysis based on study type and image characteristics
-  const findings: string[] = []
-  const quality = "good"
-  let confidence = 85
-
-  // Simulate different findings based on study type
-  switch (studyType) {
-    case "chest-xray":
-      findings.push("Heart size appears normal")
-      findings.push("Lung fields show clear visualization")
-      findings.push("Possible opacity in right lower lobe region")
-      findings.push("No obvious pneumothorax visible")
-      findings.push("Bony structures appear intact")
-      confidence = 87
-      break
-    case "ct-scan":
-      findings.push("Soft tissue contrast is adequate")
-      findings.push("No obvious mass lesions detected")
-      findings.push("Vascular structures well-defined")
-      confidence = 92
-      break
-    case "mri":
-      findings.push("Good tissue contrast resolution")
-      findings.push("No obvious signal abnormalities")
-      confidence = 89
-      break
-    default:
-      findings.push("Image quality suitable for diagnostic interpretation")
-      confidence = 80
-  }
-
-  return { findings, quality, confidence }
-}
-
 export async function analyzeReport(formData: FormData) {
-  const patientId = formData.get("patientId") as string
-  const studyType = formData.get("studyType") as string
-  const reportText = formData.get("reportText") as string
-  const radiologist = formData.get("radiologist") as string
+  const rawPatientId = formData.get("patientId") as string
+  const rawStudyType = formData.get("studyType") as string
+  const rawReportText = formData.get("reportText") as string
+  const rawRadiologist = formData.get("radiologist") as string
+  const rawPreviousReportId = formData.get("previousReportId") as string
   const imageCount = Number.parseInt((formData.get("imageCount") as string) || "0")
+
+  // Sanitize all inputs
+  const patientId = sanitizeInput(rawPatientId || "", MAX_PATIENT_ID_LENGTH)
+  const studyType = sanitizeInput(rawStudyType || "", MAX_FIELD_LENGTH)
+  const reportText = sanitizeInput(rawReportText || "", MAX_REPORT_TEXT_LENGTH)
+  const radiologist = sanitizeInput(rawRadiologist || "", MAX_FIELD_LENGTH)
+  const previousReportId = sanitizeInput(rawPreviousReportId || "", MAX_FIELD_LENGTH)
 
   if (!reportText) {
     throw new Error("Report text is required")
@@ -106,80 +93,263 @@ export async function analyzeReport(formData: FormData) {
     throw new Error("Patient ID and Study Type are required")
   }
 
+  // Validate identifiers don't contain injection characters
+  if (!isValidIdentifier(patientId)) {
+    throw new Error("Patient ID contains invalid characters")
+  }
+
+  // Load previous report for comparison if specified
+  let previousReportText = ""
+  if (previousReportId) {
+    try {
+      const prevReport = await databaseService.getReport(previousReportId)
+      if (prevReport) {
+        previousReportText = prevReport.report_text
+      }
+    } catch (dbError) {
+      console.warn("Failed to fetch previous report for comparison:", dbError)
+    }
+  }
+
+  let temporalSection = ""
+  if (previousReportText) {
+    temporalSection = `\n\nThere is a historical/previous radiology report for this patient for comparison:\n"""\n${previousReportText}\n"""\n\nPlease compare the current report and the current clinical images to this historical report. Check for temporal trend progression, and flag any discrepancies (e.g., if a lesion is described as "stable" or "resolving" but has grown in size compared to the previous measurement, or if a finding described as "new" was actually present in the previous study).`
+  }
+
   let allImageFindings: string[] = []
   let avgImageConfidence = 0
+  let text = ""
+  let biomedclipFindings = ""
 
   try {
-    // Process uploaded images with simulated ML analysis
-    const imageAnalysisResults: Array<{
-      findings: string[]
-      quality: string
-      confidence: number
-    }> = []
+    if (imageCount > 0 && process.env.GROQ_API_KEY) {
+      const imageParts: any[] = []
+      const rawImageBuffers: Uint8Array[] = []
 
-    for (let i = 0; i < imageCount; i++) {
-      const imageFile = formData.get(`image_${i}`) as File
-      if (imageFile) {
-        const base64Image = await convertImageToBase64(imageFile)
-        const analysis = await analyzeImageWithML(base64Image, studyType)
-        imageAnalysisResults.push(analysis)
+      for (let i = 0; i < imageCount; i++) {
+        const imageFile = formData.get(`image_${i}`) as File
+        if (imageFile) {
+          // Enforce file size limit
+          if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+            throw new Error(`Image ${i + 1} exceeds the 10 MB size limit`)
+          }
+          // Validate file type
+          if (!imageFile.type.startsWith("image/")) {
+            throw new Error(`File ${i + 1} is not a valid image format`)
+          }
+          const arrayBuffer = await imageFile.arrayBuffer()
+          const uint8 = new Uint8Array(arrayBuffer)
+          rawImageBuffers.push(uint8)
+          imageParts.push({
+            type: "image" as const,
+            image: uint8,
+          })
+        }
       }
-    }
 
-    // Combine all image findings
-    allImageFindings = imageAnalysisResults.flatMap((result) => result.findings)
-    avgImageConfidence =
-      imageAnalysisResults.length > 0
-        ? imageAnalysisResults.reduce((sum, result) => sum + result.confidence, 0) / imageAnalysisResults.length
-        : 0
+      // ── Step 1: Run BiomedCLIP medical image classification ──────────
+      // Uses a model trained on 15M+ biomedical image-text pairs
+      let biomedclipSection = ""
+      try {
+        const classificationResult = await classifyMultipleImages(rawImageBuffers, studyType)
+        if (classificationResult) {
+          biomedclipFindings = formatFindingsForLLM(classificationResult.aggregatedFindings)
+          const cleanLabels = classificationResult.aggregatedFindings
+            .filter(f => f.avgConfidence >= 0.15)
+            .map(f => f.label)
 
-    // Enhanced prompt for comprehensive analysis
-    const analysisPrompt = `You are an advanced AI radiologist. Analyze this radiology case and provide a structured response.
+          allImageFindings = classificationResult.aggregatedFindings
+            .filter(f => f.avgConfidence >= 0.1)
+            .map(f => `${f.label} (${(f.avgConfidence * 100).toFixed(1)}% confidence)`)
+          avgImageConfidence = classificationResult.aggregatedFindings.length > 0
+            ? classificationResult.aggregatedFindings[0].avgConfidence * 100
+            : 0
+          biomedclipSection = `\n\nA specialized medical image classifier (BiomedCLIP, trained on 15M+ biomedical image-text pairs from PubMed) has pre-analyzed the uploaded image(s). Here are its findings:\n${biomedclipFindings}\n\nUse these AI-detected findings to cross-reference against the written report. Flag any discrepancies between the BiomedCLIP detections and the report text.`
 
-STUDY DETAILS:
+          // ── Step 1.5: Image RAG Reference Cases Lookup ────────────────
+          try {
+            const similarCases = await databaseService.getSimilarReportsByFindings(studyType, cleanLabels, 3)
+            if (similarCases && similarCases.length > 0) {
+              let ragReferenceSection = `\n\n=== Retrieval-Augmented Grounding (Similar Reference Cases) ===\nHere are up to 3 similar reference studies from the database matching the visual findings detected in this scan:\n`
+              similarCases.forEach((c, idx) => {
+                const analysis = c.analysis_results?.[0]
+                ragReferenceSection += `\nReference Case #${idx + 1}:\n- Scan Findings: ${(analysis?.findings || []).join(", ")}\n- Report Text: "${c.report_text.slice(0, 300)}..."\n- Verified Recommendations: ${(analysis?.recommendations || []).join(", ")}\n`
+              })
+              biomedclipSection += ragReferenceSection
+            }
+          } catch (ragError) {
+            console.warn("Image RAG reference lookup failed:", ragError)
+          }
+        }
+      } catch (classifierError) {
+        console.warn("BiomedCLIP classification failed, continuing with LLM-only analysis:", classifierError)
+      }
+
+      // ── Step 2: Run Groq LLM multimodal analysis ────────────────────
+      const analysisPrompt = `You are a professional board-certified clinical radiologist.
+We have a clinical case with the following details:
 - Study Type: ${studyType}
 - Patient ID: ${patientId}
 - Radiologist: ${radiologist}
-- Number of Images: ${imageCount}
 
-RADIOLOGY REPORT:
+Here is the written radiology report:
+"""
 ${reportText}
+"""${biomedclipSection}${temporalSection}
 
-${
-  imageCount > 0
-    ? `
-IMAGE ANALYSIS RESULTS:
-${allImageFindings.map((finding, index) => `${index + 1}. ${finding}`).join("\n")}
-Average ML Confidence: ${avgImageConfidence.toFixed(1)}%
-`
-    : "No images provided for analysis."
-}
+Please carefully analyze the uploaded clinical scan image(s) for this study, and compare your visual findings with the written radiology report to detect any discrepancies (such as false positives, false negatives, or visual-textual inconsistencies).
 
-Please analyze this case and respond with a structured analysis. Focus on:
-1. Identifying potential false findings or discrepancies
-2. Assessing the quality and completeness of the report
-3. Providing clinical recommendations
-4. Evaluating the overall risk level
+Additionally, perform clinical audits:
+1. Verify anatomical side/laterality consistency (e.g. left vs. right) between findings and impression for any described lesion or pathology.
+2. If this is a Mammogram or breast study, check if BI-RADS classification (0-6) is present. If it is a prostate study, verify if PI-RADS classification (1-5) is present.
+3. Check for life-threatening critical findings (pneumothorax, pulmonary embolism, intracranial hemorrhage, aortic dissection, free air, spinal compression, torsion). If any of these are present, set "riskLevel" to "critical" and add a recommendation to notify the physician immediately.
 
-Provide specific, actionable insights for radiologist review.`
+You must respond ONLY with a valid JSON object matching the following TypeScript interface (do not wrap in markdown code blocks or add any other text):
+{
+  "riskLevel": "low" | "medium" | "high" | "critical",
+  "findings": string[],
+  "imageFindings": string[],
+  "imageTextComparison": string,
+  "discrepancies": Array<{
+    "type": "false_positive" | "false_negative" | "inconsistency",
+    "description": string,
+    "severity": "low" | "medium" | "high",
+    "confidence": number
+  }>,
+  "recommendations": string[],
+  "confidence": number,
+  "summary": string,
+  "technicalQuality": {
+    "imageQuality": "excellent" | "good" | "fair" | "poor",
+    "reportCompleteness": "complete" | "incomplete",
+    "diagnosticConfidence": number
+  }
+}`
 
-    // Use generateText instead of generateObject for more reliable results
-    const { text } = await generateText({
-      model: groq("llama-3.1-8b-instant"),
-      prompt: analysisPrompt,
-    })
+      const { text: resultText } = await generateText({
+        model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: analysisPrompt },
+              ...imageParts,
+            ],
+          },
+        ],
+        temperature: 0.1,
+      })
+      text = resultText
+    } else {
+      if (process.env.GROQ_API_KEY) {
+        const analysisPrompt = `You are a professional board-certified clinical radiologist.
+We have a clinical case with the following details:
+- Study Type: ${studyType}
+- Patient ID: ${patientId}
+- Radiologist: ${radiologist}
 
-    // Parse the response and create structured result
-    const analysisResult = parseAnalysisResponse(text, {
-      patientId,
-      studyType,
-      radiologist,
-      imageCount,
-      allImageFindings,
-      avgImageConfidence,
-      reportText,
-    })
+Here is the written radiology report:
+"""
+${reportText}
+"""${temporalSection}
 
+Analyze this report for clinical quality, completeness, internal consistency, and potential discrepancies (e.g. self-contradictions).
+
+Additionally, perform clinical audits:
+1. Verify anatomical side/laterality consistency (e.g. left vs. right) between findings and impression for any described lesion or pathology.
+2. If this is a Mammogram or breast study, check if BI-RADS classification (0-6) is present. If it is a prostate study, verify if PI-RADS classification (1-5) is present.
+3. Check for life-threatening critical findings (pneumothorax, pulmonary embolism, intracranial hemorrhage, aortic dissection, free air, spinal compression, torsion). If any of these are present, set "riskLevel" to "critical" and add a recommendation to notify the physician immediately.
+
+You must respond ONLY with a valid JSON object matching the following TypeScript interface (do not wrap in markdown code blocks or add any other text):
+{
+  "riskLevel": "low" | "medium" | "high" | "critical",
+  "findings": string[],
+  "imageFindings": string[],
+  "imageTextComparison": string,
+  "discrepancies": Array<{
+    "type": "false_positive" | "false_negative" | "inconsistency",
+    "description": string,
+    "severity": "low" | "medium" | "high",
+    "confidence": number
+  }>,
+  "recommendations": string[],
+  "confidence": number,
+  "summary": string,
+  "technicalQuality": {
+    "reportCompleteness": "complete" | "incomplete",
+    "diagnosticConfidence": number
+  }
+}`
+
+        const { text: resultText } = await generateText({
+          model: groq("meta-llama/llama-3.3-70b-versatile"),
+          prompt: analysisPrompt,
+          temperature: 0.1,
+        })
+        text = resultText
+      } else {
+        throw new Error("GROQ_API_KEY is required for AI discrepancy analysis.")
+      }
+    }
+
+    let analysisResult: any
+    try {
+      let cleanedText = text.trim()
+      if (cleanedText.startsWith("```")) {
+        cleanedText = cleanedText.replace(/^```json\s*/i, "").replace(/```$/, "").trim()
+      }
+      const parsed = JSON.parse(cleanedText)
+      allImageFindings = parsed.imageFindings || []
+      avgImageConfidence = parsed.technicalQuality?.diagnosticConfidence || parsed.confidence || 85
+
+      analysisResult = {
+        riskLevel: parsed.riskLevel || "low",
+        findings: parsed.findings || [],
+        imageFindings: parsed.imageFindings || [],
+        imageTextComparison: parsed.imageTextComparison || "Comparison completed.",
+        discrepancies: parsed.discrepancies || [],
+        recommendations: parsed.recommendations || [],
+        confidence: parsed.confidence || 80,
+        potentialFalseFindings: (parsed.discrepancies || []).map((d: any) => ({
+          finding: d.description,
+          likelihood: d.severity,
+          reasoning: `AI analysis detected potential ${d.type.replace("_", " ")}`,
+          source: "comparison" as const,
+          mlConfidence: d.confidence,
+        })),
+        summary: parsed.summary || "",
+        technicalQuality: {
+          imageQuality: parsed.technicalQuality?.imageQuality || (imageCount > 0 ? "good" : undefined),
+          reportCompleteness: parsed.technicalQuality?.reportCompleteness || "complete",
+          diagnosticConfidence: parsed.technicalQuality?.diagnosticConfidence || parsed.confidence || 80,
+        },
+        patientId,
+        studyType,
+        radiologist,
+        imageCount,
+        timestamp: new Date().toISOString(),
+        analysisType: imageCount > 0 ? "multimodal_analysis" : "text_analysis",
+        mlMetrics: {
+          imageAnalysisConfidence: imageCount > 0 ? parsed.confidence || 85 : 0,
+          textAnalysisConfidence: parsed.confidence || 80,
+          crossModalAgreement: imageCount > 0 ? Math.max(60, 100 - (parsed.discrepancies || []).length * 10) : null,
+        },
+      }
+    } catch (parseError) {
+      console.warn("JSON parsing failed, falling back to heuristic parsing:", parseError)
+      analysisResult = parseAnalysisResponse(text, {
+        patientId,
+        studyType,
+        radiologist,
+        imageCount,
+        allImageFindings: [],
+        avgImageConfidence: 85,
+        reportText,
+      })
+    }
+
+    analysisResult = applyClinicalSafetyAudits(analysisResult, reportText, studyType)
+    await saveReportAndAnalysis(analysisResult, reportText, patientId, studyType, previousReportId)
     return analysisResult
   } catch (error) {
     console.error("Analysis failed:", error)
@@ -220,7 +390,9 @@ Provide specific, actionable insights for radiologist review.`
       },
     }
 
-    return fallbackResult
+    const auditedFallbackResult = applyClinicalSafetyAudits(fallbackResult, reportText, studyType)
+    await saveReportAndAnalysis(auditedFallbackResult, reportText, patientId, studyType, previousReportId)
+    return auditedFallbackResult
   }
 }
 
@@ -446,4 +618,95 @@ function extractBasicFindings(reportText: string): string[] {
   }
 
   return findings.length > 0 ? findings : ["Standard radiological findings documented"]
+}
+
+async function saveReportAndAnalysis(
+  result: any,
+  reportText: string,
+  patientId: string,
+  studyType: string,
+  previousReportId?: string
+): Promise<any> {
+  let savedReport = null
+  try {
+    let radiologistId = undefined
+    const session = await getServerSession(getAuthOptions())
+    if (session?.user?.email) {
+      const user = await databaseService.getUserByEmail(session.user.email)
+      if (user) {
+        radiologistId = user.id
+      }
+    }
+
+    savedReport = await databaseService.createReport({
+      patient_id: patientId,
+      study_type: studyType,
+      report_text: reportText,
+      radiologist_id: radiologistId,
+      status: result.riskLevel === "critical" ? "flagged" : "pending",
+      previous_report_id: previousReportId || undefined,
+    })
+
+    if (savedReport?.id) {
+      result.id = savedReport.id // Store the generated report ID back in the returned result
+      
+      const formattedDiscrepancies = (result.discrepancies || []).map((d: any) => ({
+        type: d.type,
+        details: d.description,
+        confidence: (d.confidence || 80) / 100,
+      }))
+
+      await databaseService.createAnalysis({
+        report_id: savedReport.id,
+        confidence: (result.confidence || 80) / 100,
+        risk_level: result.riskLevel,
+        findings: result.findings || [],
+        potential_false_findings: (result.discrepancies || []).map((d: any) => ({
+          finding: d.description,
+          likelihood: d.severity,
+          reasoning: `Clinical safety audit detected potential ${d.type.replace("_", " ")}`,
+          source: "comparison",
+          ml_confidence: d.confidence || 80,
+        })),
+        recommendations: result.recommendations || [],
+        summary: result.summary || "",
+        medical_relevance_score: result.technicalQuality?.diagnosticConfidence / 100 || 0.8,
+        discrepancies: formattedDiscrepancies,
+      })
+
+      // Trigger notification dispatch if configured
+      const userEmail = session?.user?.email
+      if (userEmail) {
+        if (result.riskLevel === "critical") {
+          await notificationService.notifyReportFlagged(
+            userEmail,
+            savedReport.id,
+            patientId,
+            result.riskLevel
+          )
+        } else {
+          await notificationService.notifyAnalysisComplete(
+            userEmail,
+            savedReport.id,
+            patientId,
+            (result.confidence || 80) / 100
+          )
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Database save or notification trigger failed:", error)
+  }
+  return result
+}
+
+export async function getPatientReports(patientId: string) {
+  const sanitized = sanitizeInput(patientId || "", MAX_PATIENT_ID_LENGTH)
+  if (!sanitized) return []
+  try {
+    return await databaseService.getReportsByPatient(sanitized)
+  } catch (error) {
+    console.error("Error fetching patient reports:", error)
+    return []
+  }
 }

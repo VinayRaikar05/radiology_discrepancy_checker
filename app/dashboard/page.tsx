@@ -15,6 +15,7 @@ import {
   LogOut,
   Upload,
   Users,
+  Search,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -58,6 +59,7 @@ const roleColors = {
 
 const roleActions = {
   admin: [
+    { title: "Search Reports", description: "Search and filter patient reports archive", icon: Search, href: "/search" },
     { title: "User Management", description: "Manage system users and permissions", icon: Users, href: "/admin/users" },
     {
       title: "System Analytics",
@@ -69,15 +71,18 @@ const roleActions = {
     { title: "Review Queue", description: "Review flagged findings", icon: FileText, href: "/review" },
   ],
   radiologist: [
+    { title: "Search Reports", description: "Search and filter patient reports archive", icon: Search, href: "/search" },
     { title: "Upload Reports", description: "Upload radiology reports for AI analysis", icon: Upload, href: "/upload" },
     { title: "Review Results", description: "Review AI analysis results", icon: FileText, href: "/review" },
     { title: "Analytics", description: "View your performance analytics", icon: BarChart3, href: "/analytics" },
   ],
   reviewer: [
+    { title: "Search Reports", description: "Search and filter patient reports archive", icon: Search, href: "/search" },
     { title: "Review Queue", description: "Review and validate AI findings", icon: FileText, href: "/review" },
     { title: "Analytics", description: "View validation analytics", icon: BarChart3, href: "/analytics" },
   ],
   resident: [
+    { title: "Search Reports", description: "Search and filter patient reports archive", icon: Search, href: "/search" },
     { title: "Upload Reports", description: "Upload radiology reports for AI analysis", icon: Upload, href: "/upload" },
     { title: "Review Results", description: "Review AI analysis results", icon: FileText, href: "/review" },
   ],
@@ -132,8 +137,8 @@ export default function DashboardPage() {
     await signOut({ callbackUrl: "/" })
   }
 
-  const userRole = (session?.user?.role && typeof session.user.role === 'string' 
-    ? session.user.role 
+  const userRole = (session?.user?.role && typeof session.user.role === 'string'
+    ? session.user.role
     : 'radiologist') as keyof typeof roleActions
   const actions = roleActions[userRole] || roleActions.radiologist
 

@@ -138,8 +138,7 @@ VALUES (
 │   ├── supabase.ts            # Supabase client configuration (with lazy initialization)
 │   └── medical-ai-engine.ts   # AI analysis engine
 ├── scripts/
-│   ├── 01-complete-schema.sql  # Database schema (REQUIRED)
-│   └── 02-comprehensive-seed.sql # Optional seed data
+│   └── 01-complete-schema.sql  # Database schema (REQUIRED)
 └── types/
     └── next-auth.d.ts          # TypeScript auth types
 \`\`\`
@@ -214,8 +213,7 @@ Make sure to set these in your Vercel project settings:
 ### Database connection issues
 - Verify your Supabase project is active
 - Check that your IP is allowed (if using IP restrictions)
-- Ensure the SQL schema has been executed successfully
-- Test connection using the `/api/test/database` endpoint
+- Verify the database schema has been executed successfully
 
 ## 📄 License
 
@@ -235,8 +233,6 @@ For issues or questions:
 - Check that all environment variables are set correctly
 - Verify the database schema is applied
 - Review the browser console and server logs for errors
-- Ensure Supabase project is active and accessible
-- Test database connection: Visit `/api/test/database` endpoint
 - Check Vercel function logs for detailed error messages
 
 ## 📝 Development Notes

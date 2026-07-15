@@ -1,30 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-function assertEnv(name: string, value: string | undefined) {
-  if (!value) {
-    throw new Error(
-      `${name} is not defined. Set it in your environment (see .env.example) and restart the dev server.`,
-    )
-  }
-  return value
-}
-
-const resolvedSupabaseUrl = assertEnv("NEXT_PUBLIC_SUPABASE_URL", supabaseUrl)
-const resolvedSupabaseAnonKey = assertEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", supabaseAnonKey)
-const resolvedSupabaseServiceKey = assertEnv("SUPABASE_SERVICE_ROLE_KEY", supabaseServiceKey)
-
-// Client-side Supabase client
-export const supabase = createClient(resolvedSupabaseUrl, resolvedSupabaseAnonKey)
-
-// Server-side Supabase client with service role
-export function createServerClient() {
-  return createClient(resolvedSupabaseUrl, resolvedSupabaseServiceKey)
-}
-
 /**
  * Lazily create and return a Supabase client for server-side usage.
  * This prevents reading env vars at module import time (which breaks Next build/page-data collection

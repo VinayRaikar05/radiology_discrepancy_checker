@@ -39,8 +39,8 @@ export default function AuditLogsPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
   const [filters, setFilters] = useState({
-    action: "",
-    entityType: "",
+    action: "all",
+    entityType: "all",
     startDate: "",
     endDate: "",
   })
@@ -67,8 +67,8 @@ export default function AuditLogsPage() {
         offset: (page * 50).toString(),
       })
 
-      if (filters.action) params.append("action", filters.action)
-      if (filters.entityType) params.append("entityType", filters.entityType)
+      if (filters.action && filters.action !== "all") params.append("action", filters.action)
+      if (filters.entityType && filters.entityType !== "all") params.append("entityType", filters.entityType)
       if (filters.startDate) params.append("startDate", filters.startDate)
       if (filters.endDate) params.append("endDate", filters.endDate)
 
@@ -167,7 +167,7 @@ export default function AuditLogsPage() {
                   <SelectValue placeholder="All Actions" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Actions</SelectItem>
+                  <SelectItem value="all">All Actions</SelectItem>
                   <SelectItem value="user.create">User Create</SelectItem>
                   <SelectItem value="user.update">User Update</SelectItem>
                   <SelectItem value="user.delete">User Delete</SelectItem>
@@ -182,7 +182,7 @@ export default function AuditLogsPage() {
                   <SelectValue placeholder="All Entity Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Entity Types</SelectItem>
+                  <SelectItem value="all">All Entity Types</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="report">Report</SelectItem>
                   <SelectItem value="analysis">Analysis</SelectItem>

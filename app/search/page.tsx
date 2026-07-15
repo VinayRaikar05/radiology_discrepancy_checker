@@ -41,9 +41,9 @@ export default function SearchPage() {
   const [page, setPage] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [filters, setFilters] = useState({
-    studyType: "",
-    status: "",
-    riskLevel: "",
+    studyType: "all",
+    status: "all",
+    riskLevel: "all",
     startDate: "",
     endDate: "",
   })
@@ -63,9 +63,9 @@ export default function SearchPage() {
       })
 
       if (searchQuery) params.append("q", searchQuery)
-      if (filters.studyType) params.append("studyType", filters.studyType)
-      if (filters.status) params.append("status", filters.status)
-      if (filters.riskLevel) params.append("riskLevel", filters.riskLevel)
+      if (filters.studyType && filters.studyType !== "all") params.append("studyType", filters.studyType)
+      if (filters.status && filters.status !== "all") params.append("status", filters.status)
+      if (filters.riskLevel && filters.riskLevel !== "all") params.append("riskLevel", filters.riskLevel)
       if (filters.startDate) params.append("startDate", filters.startDate)
       if (filters.endDate) params.append("endDate", filters.endDate)
 
@@ -83,10 +83,8 @@ export default function SearchPage() {
   }
 
   useEffect(() => {
-    if (searchQuery || Object.values(filters).some((v) => v)) {
-      performSearch()
-    }
-  }, [page])
+    performSearch()
+  }, [page, filters.studyType, filters.status, filters.riskLevel, filters.startDate, filters.endDate])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -186,11 +184,11 @@ export default function SearchPage() {
                     <SelectValue placeholder="Study Type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Types</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
                     <SelectItem value="chest-xray">Chest X-Ray</SelectItem>
                     <SelectItem value="ct-scan">CT Scan</SelectItem>
                     <SelectItem value="mri">MRI</SelectItem>
-                    <SelectItem value="ultrasound">Ultrasound</SelectItem>
+                    <SelectItem value="mammography">Mammography</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -199,7 +197,7 @@ export default function SearchPage() {
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Statuses</SelectItem>
+                    <SelectItem value="all">All Statuses</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="reviewed">Reviewed</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
@@ -212,7 +210,7 @@ export default function SearchPage() {
                     <SelectValue placeholder="Risk Level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Risk Levels</SelectItem>
+                    <SelectItem value="all">All Risk Levels</SelectItem>
                     <SelectItem value="low">Low</SelectItem>
                     <SelectItem value="medium">Medium</SelectItem>
                     <SelectItem value="high">High</SelectItem>

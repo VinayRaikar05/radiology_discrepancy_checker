@@ -1,13 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error("Supabase environment variables are not configured.")
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+import { getSupabaseForServer } from "@/lib/supabase"
 
 export interface RadiologyReport {
   id: string
@@ -18,6 +9,7 @@ export interface RadiologyReport {
   created_at: string
   updated_at: string
   status: "pending" | "reviewed" | "approved" | "flagged"
+  previous_report_id?: string
 }
 
 export interface AnalysisResult {
@@ -26,11 +18,22 @@ export interface AnalysisResult {
   confidence: number
   risk_level: "low" | "medium" | "high" | "critical"
   findings: string[]
-  potential_false_findings: any[]
+  potential_false_findings: Array<{
+    finding: string
+    likelihood: string
+    reasoning: string
+    source: string
+    ml_confidence: number
+  }>
   recommendations: string[]
   summary: string
   medical_relevance_score: number
-  discrepancies: any[]
+  discrepancies: Array<{
+    type: string
+    description: string
+    severity: string
+    confidence: number
+  }>
   created_at: string
   updated_at: string
 }
@@ -48,14 +51,20 @@ export interface User {
 }
 
 export class DatabaseService {
-  private client = supabase
+  /**
+   * Returns a lazily-initialized Supabase client.
+   * This avoids the previous bug where top-level createClient() would
+   * crash during Next.js build when env vars weren't set.
+   */
+  private getClient() {
+    return getSupabaseForServer()
+  }
 
-  constructor() {}
+  // ── User operations ──────────────────────────────────────────────────────
 
-  // User operations
   async getUser(id: string): Promise<User | null> {
     try {
-      const { data, error } = await this.client
+      const { data, error } = await this.getClient()
         .from("users")
         .select("id, email, full_name, role, department, created_at, updated_at, is_active")
         .eq("id", id)
@@ -75,7 +84,7 @@ export class DatabaseService {
 
   async getUserByEmail(email: string): Promise<User | null> {
     try {
-      const { data, error } = await this.client
+      const { data, error } = await this.getClient()
         .from("users")
         .select("id, email, full_name, role, department, is_active, created_at, updated_at")
         .eq("email", email)
@@ -96,7 +105,7 @@ export class DatabaseService {
 
   async createUser(userData: Omit<User, "id" | "created_at" | "updated_at">): Promise<User | null> {
     try {
-      const { data, error } = await this.client.from("users").insert([userData]).select().single()
+      const { data, error } = await this.getClient().from("users").insert([userData]).select().single()
 
       if (error) {
         console.error("Error creating user:", error)
@@ -112,7 +121,7 @@ export class DatabaseService {
 
   async getUsers(limit = 50, offset = 0): Promise<User[]> {
     try {
-      const { data, error } = await this.client
+      const { data, error } = await this.getClient()
         .from("users")
         .select("id, email, full_name, role, department, is_active, created_at, updated_at")
         .order("created_at", { ascending: false })
@@ -130,12 +139,13 @@ export class DatabaseService {
     }
   }
 
-  // Report operations
+  // ── Report operations ────────────────────────────────────────────────────
+
   async createReport(
     reportData: Omit<RadiologyReport, "id" | "created_at" | "updated_at">,
   ): Promise<RadiologyReport | null> {
     try {
-      const { data, error } = await this.client.from("radiology_reports").insert([reportData]).select().single()
+      const { data, error } = await this.getClient().from("radiology_reports").insert([reportData]).select().single()
 
       if (error) {
         console.error("Error creating report:", error)
@@ -151,7 +161,7 @@ export class DatabaseService {
 
   async getReport(id: string): Promise<RadiologyReport | null> {
     try {
-      const { data, error } = await this.client.from("radiology_reports").select("*").eq("id", id).single()
+      const { data, error } = await this.getClient().from("radiology_reports").select("*").eq("id", id).single()
 
       if (error) {
         console.error("Error fetching report:", error)
@@ -167,7 +177,7 @@ export class DatabaseService {
 
   async getReports(limit = 50, offset = 0): Promise<RadiologyReport[]> {
     try {
-      const { data, error } = await this.client
+      const { data, error } = await this.getClient()
         .from("radiology_reports")
         .select("*")
         .order("created_at", { ascending: false })
@@ -185,12 +195,33 @@ export class DatabaseService {
     }
   }
 
-  // Analysis operations
+  async getReportsByPatient(patientId: string): Promise<RadiologyReport[]> {
+    try {
+      const { data, error } = await this.getClient()
+        .from("radiology_reports")
+        .select("*")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching reports by patient:", error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error("Database error:", error)
+      return []
+    }
+  }
+
+  // ── Analysis operations ──────────────────────────────────────────────────
+
   async createAnalysis(
     analysisData: Omit<AnalysisResult, "id" | "created_at" | "updated_at">,
   ): Promise<AnalysisResult | null> {
     try {
-      const { data, error } = await this.client.from("analysis_results").insert([analysisData]).select().single()
+      const { data, error } = await this.getClient().from("analysis_results").insert([analysisData]).select().single()
 
       if (error) {
         console.error("Error creating analysis:", error)
@@ -206,7 +237,7 @@ export class DatabaseService {
 
   async getAnalysis(reportId: string): Promise<AnalysisResult | null> {
     try {
-      const { data, error } = await this.client.from("analysis_results").select("*").eq("report_id", reportId).single()
+      const { data, error } = await this.getClient().from("analysis_results").select("*").eq("report_id", reportId).single()
 
       if (error) {
         console.error("Error fetching analysis:", error)
@@ -222,9 +253,11 @@ export class DatabaseService {
 
   async getAnalytics(dateRange?: { start: string; end: string }) {
     try {
+      const client = this.getClient()
+
       // Build query with date range filter if provided
-      let reportsQuery = this.client.from("radiology_reports").select("id, status, study_type, created_at, radiologist_id")
-      let analysesQuery = this.client.from("analysis_results").select("confidence, risk_level, created_at, report_id")
+      let reportsQuery = client.from("radiology_reports").select("id, status, study_type, created_at, radiologist_id")
+      let analysesQuery = client.from("analysis_results").select("confidence, risk_level, created_at, report_id")
 
       if (dateRange) {
         reportsQuery = reportsQuery.gte("created_at", dateRange.start).lte("created_at", dateRange.end)
@@ -358,10 +391,159 @@ export class DatabaseService {
       .sort((a, b) => a.date.localeCompare(b.date))
   }
 
-  // Health check
+  // ── Full-text search ─────────────────────────────────────────────────────
+
+  async searchReports(query: string, limit = 20): Promise<RadiologyReport[]> {
+    try {
+      const { data, error } = await this.getClient()
+        .from("radiology_reports")
+        .select("*")
+        .textSearch("report_text", query, { type: "websearch" })
+        .order("created_at", { ascending: false })
+        .limit(limit)
+
+      if (error) {
+        // Fall back to ILIKE search if full-text search isn't configured
+        const { data: fallbackData, error: fallbackError } = await this.getClient()
+          .from("radiology_reports")
+          .select("*")
+          .ilike("report_text", `%${query}%`)
+          .order("created_at", { ascending: false })
+          .limit(limit)
+
+        if (fallbackError) {
+          console.error("Error searching reports:", fallbackError)
+          return []
+        }
+
+        return fallbackData || []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error("Database error:", error)
+      return []
+    }
+  }
+
+  async getReportsForReview(): Promise<any[]> {
+    try {
+      const { data, error } = await this.getClient()
+        .from("radiology_reports")
+        .select("*, analysis_results(*)")
+        .in("status", ["pending", "flagged"])
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching reports for review:", error)
+        return []
+      }
+      return data || []
+    } catch (error) {
+      console.error("Database error:", error)
+      return []
+    }
+  }
+
+  async getSimilarReportsByFindings(studyType: string, findings: string[], limit = 3): Promise<any[]> {
+    try {
+      if (findings.length === 0) return []
+      
+      const client = this.getClient()
+      // Fetch reports of same study type
+      const { data: reports, error } = await client
+        .from("radiology_reports")
+        .select("*, analysis_results(*)")
+        .eq("study_type", studyType)
+        .limit(30)
+
+      if (error || !reports) {
+        return []
+      }
+
+      // Filter reports where the analysis contains any of the matching findings
+      const matched = reports.filter((report: any) => {
+        const analysis = report.analysis_results?.[0]
+        if (!analysis || !analysis.findings) return false
+        return analysis.findings.some((f: string) => 
+          findings.some(label => f.toLowerCase().includes(label.toLowerCase()) || label.toLowerCase().includes(f.toLowerCase()))
+        )
+      })
+
+      return matched.slice(0, limit)
+    } catch (error) {
+      console.error("Failed to fetch similar reports by findings:", error)
+      return []
+    }
+  }
+
+  // ── Comment & Status operations ──────────────────────────────────────────
+
+  async createComment(commentData: {
+    report_id: string
+    user_id?: string
+    comment_text: string
+  }): Promise<any> {
+    try {
+      const { data, error } = await this.getClient()
+        .from("report_comments")
+        .insert([commentData])
+        .select()
+        .single()
+
+      if (error) {
+        console.error("Error creating comment:", error)
+        return null
+      }
+      return data
+    } catch (error) {
+      console.error("Database error:", error)
+      return null
+    }
+  }
+
+  async getComments(reportId: string): Promise<any[]> {
+    try {
+      const { data, error } = await this.getClient()
+        .from("report_comments")
+        .select("*, users(full_name, role)")
+        .eq("report_id", reportId)
+        .order("created_at", { ascending: true })
+
+      if (error) {
+        console.error("Error fetching comments:", error)
+        return []
+      }
+      return data || []
+    } catch (error) {
+      console.error("Database error:", error)
+      return []
+    }
+  }
+
+  async updateReportStatus(reportId: string, status: "pending" | "reviewed" | "approved" | "flagged"): Promise<boolean> {
+    try {
+      const { error } = await this.getClient()
+        .from("radiology_reports")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", reportId)
+
+      if (error) {
+        console.error("Error updating report status:", error)
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error("Database error:", error)
+      return false
+    }
+  }
+
+  // ── Health check ─────────────────────────────────────────────────────────
+
   async healthCheck(): Promise<boolean> {
     try {
-      const { error } = await this.client.from("users").select("id").limit(1)
+      const { error } = await this.getClient().from("users").select("id").limit(1)
 
       return !error
     } catch {

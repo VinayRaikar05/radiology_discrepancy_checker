@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import Link from "next/link"
-import { Brain, Shield, Stethoscope, Users, BarChart3, Upload, Search, CheckCircle } from "lucide-react"
+import { Brain, Shield, Stethoscope, Users, BarChart3, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,12 +42,6 @@ const features = [
   },
 ]
 
-const stats = [
-  { label: "Reports Monitored", value: "50,000+", icon: Search },
-  { label: "False Findings Prevented", value: "2,800+", icon: CheckCircle },
-  { label: "Average Accuracy", value: "95%", icon: BarChart3 },
-  { label: "Clinical Teams", value: "1,200+", icon: Users },
-]
 
 export default function HomePage() {
   const { data: session, status } = useSession()
@@ -124,22 +118,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => {
-              const IconComponent = stat.icon
-              return (
-                <div key={index} className="text-center">
-                  <IconComponent className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                  <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
-                  <div className="text-gray-600">{stat.label}</div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
 
       <section className="py-20 px-4">
         <div className="container mx-auto">
@@ -203,7 +181,7 @@ export default function HomePage() {
             <span className="text-2xl font-bold">RadiologyAI</span>
           </div>
           <div className="text-center text-gray-400">
-            <p>&copy; 2025 RadiologyAI. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} RadiologyAI. All rights reserved.</p>
             <p className="mt-2">Built with Next.js, Supabase, and Groq AI.</p>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +24,7 @@ import {
   CheckCircle,
   TrendingUp,
 } from "lucide-react"
-import { analyzeReport } from "../actions/analyze-report"
+import { analyzeReport, getPatientReports } from "../actions/analyze-report"
 
 export default function UploadPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -32,12 +32,32 @@ export default function UploadPage() {
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [previousReportId, setPreviousReportId] = useState("")
+  const [patientReports, setPatientReports] = useState<any[]>([])
   const [formData, setFormData] = useState({
     patientId: "",
     studyType: "",
     reportText: "",
     radiologist: "",
   })
+
+  useEffect(() => {
+    const loadPreviousReports = async () => {
+      const pId = formData.patientId?.trim()
+      if (pId && pId.length > 1) {
+        try {
+          const reports = await getPatientReports(pId)
+          setPatientReports(reports || [])
+        } catch (err) {
+          console.error("Failed to load patient reports:", err)
+        }
+      } else {
+        setPatientReports([])
+        setPreviousReportId("")
+      }
+    }
+    loadPreviousReports()
+  }, [formData.patientId])
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
@@ -79,6 +99,9 @@ export default function UploadPage() {
       submitFormData.append("studyType", formData.studyType)
       submitFormData.append("reportText", formData.reportText)
       submitFormData.append("radiologist", formData.radiologist)
+      if (previousReportId && previousReportId !== "none") {
+        submitFormData.append("previousReportId", previousReportId)
+      }
 
       selectedImages.forEach((image, index) => {
         submitFormData.append(`image_${index}`, image)
@@ -96,15 +119,15 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <Brain className="h-8 w-8 text-blue-600 mr-3" />
+              <Brain className="h-8 w-8 text-primary mr-3" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">AI-Powered Radiology Analysis</h1>
-                <p className="text-sm text-gray-600">Deep Learning • Computer Vision • Natural Language Processing</p>
+                <h1 className="text-2xl font-bold text-foreground">AI-Powered Radiology Analysis</h1>
+                <p className="text-sm text-muted-foreground">Deep Learning • Computer Vision • Natural Language Processing</p>
               </div>
             </div>
           </div>
@@ -137,6 +160,25 @@ export default function UploadPage() {
                   />
                 </div>
 
+                {patientReports.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="previousReportId">Link Previous Study (Optional — for Temporal Comparison)</Label>
+                    <Select value={previousReportId} onValueChange={setPreviousReportId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a previous study to compare..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {patientReports.map((rpt) => (
+                          <SelectItem key={rpt.id} value={rpt.id}>
+                            {rpt.study_type} — {new Date(rpt.created_at).toLocaleDateString()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="studyType">Study Type *</Label>
                   <Select value={formData.studyType} onValueChange={(value) => handleInputChange("studyType", value)}>
@@ -147,9 +189,7 @@ export default function UploadPage() {
                       <SelectItem value="chest-xray">Chest X-Ray</SelectItem>
                       <SelectItem value="ct-scan">CT Scan</SelectItem>
                       <SelectItem value="mri">MRI</SelectItem>
-                      <SelectItem value="ultrasound">Ultrasound</SelectItem>
                       <SelectItem value="mammography">Mammography</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
